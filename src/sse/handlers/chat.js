@@ -88,7 +88,7 @@ export async function handleChat(request, clientRawRequest = null) {
     if (!quotaCheck.allowed) {
       log.warn("QUOTA", `Group "${group.name}": ${quotaCheck.reason}`);
       return errorResponse(
-        HTTP_STATUS.TOO_MANY_REQUESTS || 429,
+        HTTP_STATUS.RATE_LIMITED,
         `Quota exceeded for group "${group.name}". Used $${group.usedCost.toFixed(4)} of $${group.costLimit.toFixed(2)}. Contact admin to reset.`
       );
     }
