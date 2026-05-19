@@ -12,6 +12,7 @@ export {
   createProxyPool, updateProxyPool, deleteProxyPool,
   getApiKeys, getApiKeyById, getApiKeyByKey, getApiKeysByGroupId,
   createApiKey, updateApiKey, deleteApiKey, validateApiKey,
+  incrementApiKeyCost, resetApiKeyCost,
   getGroups, getGroupById, getGroupByApiKey,
   createGroup, updateGroup, deleteGroup,
   incrementGroupCost, resetGroupCost,

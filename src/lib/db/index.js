@@ -31,6 +31,7 @@ export {
 export {
   getApiKeys, getApiKeyById, getApiKeyByKey, getApiKeysByGroupId,
   createApiKey, updateApiKey, deleteApiKey, validateApiKey,
+  incrementApiKeyCost, resetApiKeyCost,
 } from "./repos/apiKeysRepo.js";
 
 // Groups (multi-tenant isolation + quota)

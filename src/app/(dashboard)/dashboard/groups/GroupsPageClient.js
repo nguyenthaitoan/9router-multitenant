@@ -33,7 +33,7 @@ export default function GroupsPageClient() {
   const fetchAll = useCallback(async () => {
     try {
       const [groupsRes, connsRes] = await Promise.all([
-        fetch("/api/groups", { cache: "no-store" }).then(r => r.ok ? r.json() : { groups: [] }),
+        fetch("/api/groups?includeKeys=true", { cache: "no-store" }).then(r => r.ok ? r.json() : { groups: [] }),
         fetch("/api/providers", { cache: "no-store" }).then(r => r.ok ? r.json() : { connections: [] }),
       ]);
       setGroups(groupsRes.groups || []);
@@ -152,6 +152,23 @@ export default function GroupsPageClient() {
     if (res.ok) fetchAll();
   };
 
+  const resetKeyCost = (keyId, keyName) => {
+    setConfirm({
+      title: "Reset Key Cost",
+      message: `Reset cost of key "${keyName}" to $0?`,
+      onConfirm: async () => {
+        setConfirm(null);
+        const res = await fetch(`/api/keys/${keyId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resetCost: true }),
+        });
+        if (res.ok) { notify.success("Key cost reset"); fetchAll(); }
+        else notify.error("Failed to reset key cost");
+      },
+    });
+  };
+
   const toggleConn = (id) => {
     setForm(prev => {
       const next = new Set(prev.allowedConnectionIds);
@@ -207,6 +224,35 @@ export default function GroupsPageClient() {
                             className={`h-full ${exhausted ? "bg-red-500" : pct > 80 ? "bg-orange-500" : "bg-primary"}`}
                             style={{ width: `${pct}%` }}
                           />
+                        </div>
+                      )}
+                      {/* Per-key breakdown */}
+                      {g.keys && g.keys.length > 0 && (
+                        <div className="mt-3 flex flex-col gap-1">
+                          {g.keys.map(k => {
+                            const kPct = k.keyLimit > 0 ? Math.min(100, (k.keyUsedCost / k.keyLimit) * 100) : 0;
+                            const kExhausted = k.keyLimit > 0 && k.keyUsedCost >= k.keyLimit;
+                            return (
+                              <div key={k.id} className="flex items-center gap-2 text-xs text-text-muted">
+                                <span className="w-32 truncate font-mono">{k.name}</span>
+                                <span className={kExhausted ? "text-red-500" : ""}>
+                                  {fmtUsd(k.keyUsedCost)} / {k.keyLimit > 0 ? `$${k.keyLimit.toFixed(2)}` : "∞"}
+                                </span>
+                                {k.keyLimit > 0 && (
+                                  <div className="flex-1 h-1 bg-black/5 dark:bg-white/10 rounded-full overflow-hidden">
+                                    <div className={`h-full ${kExhausted ? "bg-red-500" : "bg-primary/60"}`} style={{ width: `${kPct}%` }} />
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => resetKeyCost(k.id, k.name)}
+                                  className="text-text-muted hover:text-primary"
+                                  title="Reset key cost"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">restart_alt</span>
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

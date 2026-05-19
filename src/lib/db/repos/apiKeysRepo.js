@@ -11,6 +11,8 @@ function rowToKey(row) {
     isActive: row.isActive === 1 || row.isActive === true,
     createdAt: row.createdAt,
     groupId: row.groupId || null,
+    keyLimit: row.keyLimit ?? 0,
+    keyUsedCost: row.keyUsedCost ?? 0,
   };
 }
 
@@ -32,7 +34,7 @@ export async function getApiKeysByGroupId(groupId) {
   return rows.map(rowToKey);
 }
 
-export async function createApiKey(name, machineId, groupId = null) {
+export async function createApiKey(name, machineId, groupId = null, keyLimit = 0) {
   if (!machineId) throw new Error("machineId is required");
   const db = await getAdapter();
   const { generateApiKeyWithMachine } = await import("@/shared/utils/apiKey");
@@ -45,10 +47,12 @@ export async function createApiKey(name, machineId, groupId = null) {
     isActive: true,
     createdAt: new Date().toISOString(),
     groupId: groupId || null,
+    keyLimit: typeof keyLimit === "number" ? keyLimit : 0,
+    keyUsedCost: 0,
   };
   db.run(
-    `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt, groupId) VALUES(?, ?, ?, ?, ?, ?, ?)`,
-    [apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt, apiKey.groupId]
+    `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt, groupId, keyLimit, keyUsedCost) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt, apiKey.groupId, apiKey.keyLimit, 0]
   );
   return apiKey;
 }
@@ -61,12 +65,36 @@ export async function updateApiKey(id, data) {
     if (!row) return;
     const merged = { ...rowToKey(row), ...data };
     db.run(
-      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, groupId = ? WHERE id = ?`,
-      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, merged.groupId || null, id]
+      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, groupId = ?, keyLimit = ?, keyUsedCost = ? WHERE id = ?`,
+      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0,
+       merged.groupId || null, merged.keyLimit ?? 0, merged.keyUsedCost ?? 0, id]
     );
     result = merged;
   });
   return result;
+}
+
+/**
+ * Atomically increment keyUsedCost for a key. Returns new keyUsedCost.
+ */
+export async function incrementApiKeyCost(keyStr, costDelta) {
+  if (!keyStr || !costDelta || costDelta <= 0) return null;
+  const db = await getAdapter();
+  let newUsed = null;
+  db.transaction(() => {
+    const row = db.get(`SELECT id, keyUsedCost FROM apiKeys WHERE key = ?`, [keyStr]);
+    if (!row) return;
+    newUsed = (row.keyUsedCost ?? 0) + costDelta;
+    db.run(`UPDATE apiKeys SET keyUsedCost = ? WHERE id = ?`, [newUsed, row.id]);
+  });
+  return newUsed;
+}
+
+/**
+ * Reset keyUsedCost to 0 for a key (admin action).
+ */
+export async function resetApiKeyCost(id) {
+  return await updateApiKey(id, { keyUsedCost: 0 });
 }
 
 export async function deleteApiKey(id) {

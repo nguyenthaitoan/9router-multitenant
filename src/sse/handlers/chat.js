@@ -9,7 +9,7 @@ import {
 } from "../services/auth.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
-import { resolveGroupForKey, checkGroupQuota } from "@/lib/groupQuota.js";
+import { resolveGroupForKey, checkGroupQuota, checkKeyLimit, resolveKeyRecord } from "@/lib/groupQuota.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
@@ -80,8 +80,7 @@ export async function handleChat(request, clientRawRequest = null) {
     }
   }
 
-  // Resolve group for this key (null if no group → legacy/default behavior).
-  // Enforce quota + isActive at request entry.
+  // Resolve group + per-key quota check
   const group = await resolveGroupForKey(apiKey);
   if (group) {
     const quotaCheck = checkGroupQuota(group);
@@ -89,10 +88,28 @@ export async function handleChat(request, clientRawRequest = null) {
       log.warn("QUOTA", `Group "${group.name}": ${quotaCheck.reason}`);
       return errorResponse(
         HTTP_STATUS.RATE_LIMITED,
-        `Quota exceeded for group "${group.name}". Used $${group.usedCost.toFixed(4)} of $${group.costLimit.toFixed(2)}. Contact admin to reset.`
+        `${quotaCheck.reason}. Contact admin to reset.`
       );
     }
     log.debug("QUOTA", `Group "${group.name}": $${group.usedCost.toFixed(4)} / $${group.costLimit > 0 ? group.costLimit.toFixed(2) : "∞"}`);
+  }
+
+  // Per-key soft limit (independent of group quota)
+  if (apiKey) {
+    const keyRecord = await resolveKeyRecord(apiKey);
+    if (keyRecord) {
+      const keyCheck = checkKeyLimit(keyRecord);
+      if (!keyCheck.allowed) {
+        log.warn("QUOTA", `Key "${keyRecord.name}": ${keyCheck.reason}`);
+        return errorResponse(
+          HTTP_STATUS.RATE_LIMITED,
+          `${keyCheck.reason}. Contact admin to reset your key quota.`
+        );
+      }
+      if (keyRecord.keyLimit > 0) {
+        log.debug("QUOTA", `Key "${keyRecord.name}": $${keyRecord.keyUsedCost.toFixed(4)} / $${keyRecord.keyLimit.toFixed(2)}`);
+      }
+    }
   }
 
   if (!modelStr) {

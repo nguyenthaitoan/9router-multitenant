@@ -80,6 +80,8 @@ export const TABLES = {
       isActive: "INTEGER DEFAULT 1",
       createdAt: "TEXT NOT NULL",
       groupId: "TEXT",
+      keyLimit: "REAL DEFAULT 0",
+      keyUsedCost: "REAL DEFAULT 0",
     },
     indexes: [
       "CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)",

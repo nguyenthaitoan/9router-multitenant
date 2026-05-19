@@ -14,16 +14,21 @@ export async function GET(request) {
 
     const groups = await getGroups(filter);
 
-    // Enrich with key count + computed status
+    // Enrich with key count + computed status + keys list
     const enriched = await Promise.all(groups.map(async (g) => {
       const keys = await getApiKeysByGroupId(g.id);
       const remaining = g.costLimit > 0 ? Math.max(0, g.costLimit - g.usedCost) : null;
       const exhausted = g.costLimit > 0 && g.usedCost >= g.costLimit;
+      const includeKeys = searchParams.get("includeKeys") === "true";
       return {
         ...g,
         keyCount: keys.length,
         remaining,
         exhausted,
+        ...(includeKeys ? { keys: keys.map(k => ({
+          id: k.id, name: k.name, isActive: k.isActive,
+          keyLimit: k.keyLimit, keyUsedCost: k.keyUsedCost,
+        })) } : {}),
       };
     }));
 

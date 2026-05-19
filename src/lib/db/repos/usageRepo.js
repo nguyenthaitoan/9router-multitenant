@@ -282,17 +282,22 @@ export async function saveRequestUsage(entry) {
     pushToRing(entry);
     statsEmitter.emit("update");
 
-    // Track cost into group quota (fire-and-forget; doesn't block usage logging)
+    // Track cost into group quota AND per-key counter (fire-and-forget)
     if (entry.apiKey && entry.cost && entry.cost > 0) {
       try {
-        const { getApiKeyByKey } = await import("./apiKeysRepo.js");
+        const { getApiKeyByKey, incrementApiKeyCost } = await import("./apiKeysRepo.js");
         const keyRecord = await getApiKeyByKey(entry.apiKey);
-        if (keyRecord?.groupId) {
-          const { incrementGroupCost } = await import("./groupsRepo.js");
-          await incrementGroupCost(keyRecord.groupId, entry.cost);
+        if (keyRecord) {
+          // Always track per-key cost
+          await incrementApiKeyCost(entry.apiKey, entry.cost);
+          // Track group cost if key belongs to a group
+          if (keyRecord.groupId) {
+            const { incrementGroupCost } = await import("./groupsRepo.js");
+            await incrementGroupCost(keyRecord.groupId, entry.cost);
+          }
         }
       } catch (e) {
-        console.error("[usage] Failed to track group cost:", e?.message || e);
+        console.error("[usage] Failed to track group/key cost:", e?.message || e);
       }
     }
   } catch (e) {

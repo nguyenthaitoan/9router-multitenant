@@ -34,6 +34,8 @@ export {
   createApiKey,
   deleteApiKey,
   validateApiKey,
+  incrementApiKeyCost,
+  resetApiKeyCost,
   getGroups,
   getGroupById,
   getGroupByApiKey,
