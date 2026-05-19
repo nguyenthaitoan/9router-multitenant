@@ -1221,13 +1221,6 @@ export default function APIPageClient({ machineId }) {
           </div>
         </div>
       </Modal>
-              fullWidth
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Created Key Modal */}
       <Modal
