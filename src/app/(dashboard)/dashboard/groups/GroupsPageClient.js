@@ -34,19 +34,14 @@ export default function GroupsPageClient() {
     try {
       const [groupsRes, connsRes] = await Promise.all([
         fetch("/api/groups", { cache: "no-store" }).then(r => r.ok ? r.json() : { groups: [] }),
-        fetch("/api/providers", { cache: "no-store" }).then(r => r.ok ? r.json() : { providers: [] }),
+        fetch("/api/providers", { cache: "no-store" }).then(r => r.ok ? r.json() : { connections: [] }),
       ]);
       setGroups(groupsRes.groups || []);
-      // Flatten providers → connections list
-      const flat = [];
-      for (const p of connsRes.providers || []) {
-        for (const c of p.connections || []) {
-          flat.push({
-            id: c.id,
-            label: `${p.providerId || p.id || "?"} · ${c.name || c.email || c.id?.slice(0, 8) || "Account"}`,
-          });
-        }
-      }
+      // Flatten connections list
+      const flat = (connsRes.connections || []).map(c => ({
+        id: c.id,
+        label: `${c.provider} · ${c.name || c.email || c.id?.slice(0, 8) || "Account"}`,
+      }));
       setConnections(flat);
     } catch (e) {
       console.log("Error fetching groups:", e);
