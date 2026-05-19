@@ -110,6 +110,7 @@ export default function APIPageClient({ machineId }) {
 
   useEffect(() => {
     fetchData();
+    fetchGroups();
     loadSettings();
     // Poll status periodically + on tab visible to sync after watchdog restarts
     const interval = setInterval(() => { syncTunnelStatus(); }, STATUS_POLL_INTERVAL_MS);
@@ -638,6 +639,20 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const [newKeyGroupId, setNewKeyGroupId] = useState("");
+  const [newKeyLimit, setNewKeyLimit] = useState(0);
+  const [groups, setGroups] = useState([]);
+
+  const fetchGroups = async () => {
+    try {
+      const res = await fetch("/api/groups?isActive=true", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(data.groups || []);
+      }
+    } catch { /* ignore */ }
+  };
+
   const handleCreateKey = async () => {
     if (!newKeyName.trim()) return;
 
@@ -645,7 +660,11 @@ export default function APIPageClient({ machineId }) {
       const res = await fetch("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newKeyName }),
+        body: JSON.stringify({
+          name: newKeyName,
+          groupId: newKeyGroupId || null,
+          keyLimit: Number(newKeyLimit) || 0,
+        }),
       });
       const data = await res.json();
 
@@ -653,6 +672,8 @@ export default function APIPageClient({ machineId }) {
         setCreatedKey(data.key);
         await fetchData();
         setNewKeyName("");
+        setNewKeyGroupId("");
+        setNewKeyLimit(0);
         setShowAddModal(false);
       }
     } catch (error) {
@@ -1147,6 +1168,8 @@ export default function APIPageClient({ machineId }) {
         onClose={() => {
           setShowAddModal(false);
           setNewKeyName("");
+          setNewKeyGroupId("");
+          setNewKeyLimit(0);
         }}
       >
         <div className="flex flex-col gap-4">
@@ -1154,7 +1177,30 @@ export default function APIPageClient({ machineId }) {
             label="Key Name"
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
-            placeholder="Production Key"
+            placeholder="e.g. Dev 1 - Customer A"
+          />
+          <div>
+            <label className="text-sm font-medium mb-1 block">Group (optional)</label>
+            <select
+              className="w-full px-3 py-2 rounded border border-border bg-input text-sm"
+              value={newKeyGroupId}
+              onChange={(e) => setNewKeyGroupId(e.target.value)}
+            >
+              <option value="">No group (full access, no quota)</option>
+              {groups.map(g => (
+                <option key={g.id} value={g.id}>
+                  {g.name}{g.costLimit > 0 ? ` ($${g.usedCost?.toFixed(2) || "0.00"}/$${g.costLimit.toFixed(2)})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Input
+            label="Key Limit (USD, 0 = unlimited)"
+            type="number"
+            step="0.01"
+            min="0"
+            value={newKeyLimit}
+            onChange={(e) => setNewKeyLimit(e.target.value)}
           />
           <div className="flex gap-2">
             <Button onClick={handleCreateKey} fullWidth disabled={!newKeyName.trim()}>
@@ -1164,8 +1210,17 @@ export default function APIPageClient({ machineId }) {
               onClick={() => {
                 setShowAddModal(false);
                 setNewKeyName("");
+                setNewKeyGroupId("");
+                setNewKeyLimit(0);
               }}
               variant="ghost"
+              fullWidth
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
               fullWidth
             >
               Cancel
